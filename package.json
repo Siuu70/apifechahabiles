@@ -1,0 +1,16 @@
+{
+  "name": "apifechahabiles",
+  "version": "1.0.0",
+  "description": "API para calcular fechas hábiles en Colombia",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "colombia",
+    "fechas",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT"
+}
