@@ -1,85 +1,106 @@
-# API de fechas hábiles en Colombia
+# API de Fechas Hábiles en Colombia
 
-Esta API calcula fechas y horas hábiles en Colombia teniendo en cuenta:
+Esta API calcula fechas y horas hábiles en Colombia, diseñada para cumplir con los requisitos de la prueba técnica de Biz.
 
-- Calendario laboral colombiano (lunes a viernes) y días festivos nacionales.
-- Horario laboral de 8:00 a.m. a 5:00 p.m. con pausa de almuerzo de 12:00 p.m. a 1:00 p.m.
-- Zona horaria de Colombia (America/Bogota) para los cálculos internos y respuesta en UTC (formato ISO 8601 con sufijo `Z`).
+## Características
+
+- **Cálculo Preciso:** Suma días y/o horas hábiles a una fecha dada.
+- **Horario Laboral Colombiano:** Opera con el horario de lunes a viernes, de 8:00 a.m. a 5:00 p.m., y tiene en cuenta la hora de almuerzo (12:00 p.m. a 1:00 p.m.).
+- **Días Festivos de Colombia:** Excluye los días festivos nacionales, obtenidos dinámicamente desde una fuente externa.
+- **Manejo de Zonas Horarias:** Realiza los cálculos en la zona horaria de Colombia (`America/Bogota`) y devuelve los resultados en UTC.
+- **Ajuste de Fecha Inicial:** Si la fecha de inicio cae fuera del horario laboral, se ajusta automáticamente al momento hábil anterior más cercano.
 
 ## Requisitos
 
-- Node.js 20 o superior.
+- Node.js (v14 o superior)
+- npm
 
 ## Instalación
 
-```bash
-npm install
-```
+1.  Clona este repositorio:
+    ```bash
+    git clone <URL-del-repositorio>
+    cd <nombre-del-directorio>
+    ```
 
-> Nota: el proyecto no depende de paquetes externos en tiempo de ejecución. El comando `npm install` es opcional y solo es necesario si desea añadir dependencias adicionales.
-
-## Compilación
-
-```bash
-npm run build
-```
-
-El comando genera los artefactos en `dist/`.
+2.  Instala las dependencias:
+    ```bash
+    npm install
+    ```
 
 ## Ejecución
 
-```bash
-npm start
-```
+1.  **Compilar el código TypeScript:**
+    ```bash
+    npm run build
+    ```
 
-o directamente:
+2.  **Iniciar el servidor:**
+    ```bash
+    npm start
+    ```
 
-```bash
-node dist/index.js
-```
+La API estará disponible en `http://localhost:3000`.
 
-La API quedará disponible en `http://localhost:3000/working-date`.
+## Endpoint Principal
 
-## Uso del endpoint
+### `GET /working-date`
 
-**Método:** `GET`
+Calcula una fecha futura sumando días y/u horas hábiles a una fecha de inicio.
 
-**Parámetros en query string:**
+#### Parámetros de Consulta
 
-- `days` (opcional): número entero positivo de días hábiles a sumar.
-- `hours` (opcional): número entero positivo de horas hábiles a sumar.
-- `date` (opcional): fecha inicial en UTC (ISO 8601) con sufijo `Z`. Si no se especifica se utiliza la hora actual de Colombia.
+| Parámetro | Descripción                                                                                                                            | Ejemplo                               |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------ |
+| `days`    | **(Opcional)** Número de días hábiles a sumar. Debe ser un entero positivo.                                                              | `days=3`                              |
+| `hours`   | **(Opcional)** Número de horas hábiles a sumar. Debe ser un entero positivo.                                                              | `hours=5`                             |
+| `date`    | **(Opcional)** Fecha de inicio en formato ISO 8601 UTC (con sufijo `Z`). Si no se provee, se usa la fecha y hora actual de Colombia. | `date=2025-10-20T15:00:00.000Z`      |
 
-Al menos uno de `days` u `hours` debe enviarse. Si ambos se incluyen, primero se suman los días y después las horas.
+**Nota:** Se debe proporcionar al menos uno de los parámetros `days` o `hours`.
 
-**Respuesta exitosa (200):**
+#### Respuestas
 
-```json
-{ "date": "2025-08-01T14:00:00.000Z" }
-```
+-   **Éxito (200 OK):**
+    ```json
+    {
+      "date": "2025-10-23T21:00:00.000Z"
+    }
+    ```
 
-**Respuesta de error (400):**
+-   **Error (400 Bad Request):**
+    ```json
+    {
+      "error": "InvalidParameters",
+      "message": "At least one of days or hours must be provided"
+    }
+    ```
 
-```json
-{ "error": "InvalidParameters", "message": "Detalle" }
-```
+#### Ejemplos de Uso
 
-## Ejemplos rápidos
+-   **Sumar 1 hora a un viernes a las 5:00 p.m.:**
+    -   Resultado esperado: Lunes siguiente a las 9:00 a.m.
+    -   ```bash
+        curl "http://localhost:3000/working-date?date=2025-10-17T22:00:00.000Z&hours=1"
+        ```
 
-Sumar cuatro horas hábiles desde la fecha actual:
+-   **Sumar 1 día y 4 horas a un martes a las 3:00 p.m.:**
+    -   Resultado esperado: Jueves a las 10:00 a.m.
+    -   ```bash
+        curl "http://localhost:3000/working-date?date=2025-10-21T20:00:00.000Z&days=1&hours=4"
+        ```
 
-```bash
-curl "http://localhost:3000/working-date?hours=4"
-```
+-   **Sumar 8 horas a un día laboral a las 8:00 a.m.:**
+    -   Resultado esperado: Mismo día a las 5:00 p.m.
+    -   ```bash
+        curl "http://localhost:3000/working-date?date=2025-10-21T13:00:00.000Z&hours=8"
+        ```
 
-Sumar un día hábil y tres horas hábiles desde `2025-04-10T15:00:00.000Z`:
+-   **Sumar 5 días y 4 horas desde el 10 de abril de 2025 (con festivos el 17 y 18):**
+    -   Resultado esperado: 21 de abril a las 3:00 p.m.
+    -   ```bash
+        curl "http://localhost:3000/working-date?date=2025-04-10T15:00:00.000Z&days=5&hours=4"
+        ```
 
-```bash
-curl "http://localhost:3000/working-date?days=1&hours=3&date=2025-04-10T15:00:00.000Z"
-```
+## Dependencias
 
-## Implementación
-
-- Las fechas festivas se generan dinámicamente para cada año conforme a la legislación colombiana (incluye fiestas con traslado al lunes).
-- Los cálculos de días/horas se realizan en la zona horaria de Colombia y se devuelven en UTC.
-- Si la fecha inicial cae fuera del horario laboral o en un día no hábil, se ajusta hacia atrás al momento laboral más reciente.
+-   **axios:** Utilizado para realizar peticiones HTTP y obtener la lista de días festivos desde una fuente externa.

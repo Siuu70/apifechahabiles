@@ -14,8 +14,6 @@ import { CalculationQuery, CalculationRequest, ErrorResponseBody, SuccessRespons
 const DEFAULT_PORT: number = 3000;
 const ROUTE_PATH: string = "/working-date";
 
-preloadHolidayRange(new Date().getUTCFullYear());
-
 function parsePositiveInteger(value: string, field: string): number {
   if (!/^\d+$/.test(value)) {
     throw new Error(`${field} must be a positive integer`);
@@ -108,36 +106,42 @@ function handleCalculation(request: CalculationRequest): SuccessResponseBody {
   return buildSuccessResponse(dateText);
 }
 
-const server = createServer((req: IncomingMessage, res: ServerResponse): void => {
-  if (req.method !== "GET") {
-    sendJson(res, 405, buildErrorResponse("Only GET requests are supported"));
-    return;
-  }
+async function main(): Promise<void> {
+  await preloadHolidayRange(new Date().getUTCFullYear());
 
-  const requestUrl: string = req.url ?? "/";
-  const url: URL = new URL(requestUrl, "http://localhost");
+  const server = createServer((req: IncomingMessage, res: ServerResponse): void => {
+    if (req.method !== "GET") {
+      sendJson(res, 405, buildErrorResponse("Only GET requests are supported"));
+      return;
+    }
 
-  if (url.pathname !== ROUTE_PATH) {
-    sendJson(res, 404, buildErrorResponse("Route not found"));
-    return;
-  }
+    const requestUrl: string = req.url ?? "/";
+    const url: URL = new URL(requestUrl, "http://localhost");
 
-  try {
-    const query: CalculationQuery = parseQueryParameters(url);
-    const request: CalculationRequest = validateRequest(query);
-    const response: SuccessResponseBody = handleCalculation(request);
-    sendJson(res, 200, response);
-  } catch (error) {
-    const message: string = error instanceof Error ? error.message : "Unexpected error";
-    sendJson(res, 400, buildErrorResponse(message));
-  }
-});
+    if (url.pathname !== ROUTE_PATH) {
+      sendJson(res, 404, buildErrorResponse("Route not found"));
+      return;
+    }
 
-const portText: string | undefined = process.env.PORT;
-const port: number = portText !== undefined ? Number.parseInt(portText, 10) : DEFAULT_PORT;
+    try {
+      const query: CalculationQuery = parseQueryParameters(url);
+      const request: CalculationRequest = validateRequest(query);
+      const response: SuccessResponseBody = handleCalculation(request);
+      sendJson(res, 200, response);
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : "Unexpected error";
+      sendJson(res, 400, buildErrorResponse(message));
+    }
+  });
 
-server.listen(Number.isFinite(port) ? port : DEFAULT_PORT, (): void => {
-  const actualPort: number = Number.isFinite(port) ? port : DEFAULT_PORT;
-  // eslint-disable-next-line no-console
-  console.log(`Working days API listening on port ${actualPort} (timezone: ${TIME_ZONE_IDENTIFIER})`);
-});
+  const portText: string | undefined = process.env.PORT;
+  const port: number = portText !== undefined ? Number.parseInt(portText, 10) : DEFAULT_PORT;
+
+  server.listen(Number.isFinite(port) ? port : DEFAULT_PORT, (): void => {
+    const actualPort: number = Number.isFinite(port) ? port : DEFAULT_PORT;
+    // eslint-disable-next-line no-console
+    console.log(`Working days API listening on port ${actualPort} (timezone: ${TIME_ZONE_IDENTIFIER})`);
+  });
+}
+
+main();

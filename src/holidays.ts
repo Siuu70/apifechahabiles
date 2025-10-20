@@ -1,43 +1,25 @@
-import { HOLIDAY_CACHE_YEARS_BACKWARD, HOLIDAY_CACHE_YEARS_FORWARD, MILLISECONDS_PER_DAY } from "./constants";
+import axios from "axios";
+import { HOLIDAY_CACHE_YEARS_BACKWARD, HOLIDAY_CACHE_YEARS_FORWARD } from "./constants";
 import { HolidayCacheEntry } from "./types";
 
 const holidayCache: Map<number, HolidayCacheEntry> = new Map();
+const HOLIDAY_URL = "https://content.capta.co/Recruitment/WorkingDays.json";
 
-const mondayAdjustedDates: ReadonlyArray<[number, number]> = [
-  [1, 6],
-  [3, 19],
-  [6, 29],
-  [8, 15],
-  [10, 12],
-  [11, 1],
-  [11, 11],
-];
+let allHolidays: Set<string> | undefined;
 
-const fixedDates: ReadonlyArray<[number, number]> = [
-  [1, 1],
-  [5, 1],
-  [7, 20],
-  [8, 7],
-  [12, 8],
-  [12, 25],
-];
-
-const HOLY_THURSDAY_OFFSET: number = -3;
-const GOOD_FRIDAY_OFFSET: number = -2;
-const ASCENSION_OFFSET: number = 39;
-const CORPUS_CHRISTI_OFFSET: number = 60;
-const SACRED_HEART_OFFSET: number = 68;
-
-function addDaysUtc(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * MILLISECONDS_PER_DAY);
-}
-
-function moveToNextMonday(date: Date): Date {
-  const result: Date = new Date(date.getTime());
-  const dayOfWeek: number = result.getUTCDay();
-  const delta: number = dayOfWeek === 1 ? 0 : (8 - dayOfWeek) % 7;
-  result.setUTCDate(result.getUTCDate() + delta);
-  return result;
+async function fetchHolidays(): Promise<Set<string>> {
+  if (allHolidays) {
+    return allHolidays;
+  }
+  try {
+    const response = await axios.get<string[]>(HOLIDAY_URL);
+    allHolidays = new Set(response.data);
+    return allHolidays;
+  } catch (error) {
+    console.error("Error fetching holidays, using internal calculation as fallback:", error);
+    // Fallback to internal calculation if fetching fails
+    return new Set();
+  }
 }
 
 function formatDateKey(date: Date): string {
@@ -49,62 +31,40 @@ function formatDateKey(date: Date): string {
   return `${year}-${monthText}-${dayText}`;
 }
 
-function calculateEasterSunday(year: number): Date {
-  const a: number = year % 19;
-  const b: number = Math.floor(year / 100);
-  const c: number = year % 100;
-  const d: number = Math.floor(b / 4);
-  const e: number = b % 4;
-  const f: number = Math.floor((b + 8) / 25);
-  const g: number = Math.floor((b - f + 1) / 3);
-  const h: number = (19 * a + b - d - g + 15) % 30;
-  const i: number = Math.floor(c / 4);
-  const k: number = c % 4;
-  const l: number = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m: number = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month: number = Math.floor((h + l - 7 * m + 114) / 31);
-  const day: number = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function buildHolidaySet(year: number): Set<string> {
-  const result: Set<string> = new Set();
-
-  for (const [month, day] of fixedDates) {
-    result.add(formatDateKey(new Date(Date.UTC(year, month - 1, day))));
+function buildHolidaySetForYear(year: number, holidays: Set<string>): Set<string> {
+  const yearHolidays = new Set<string>();
+  for (const holiday of holidays) {
+    if (holiday.startsWith(year.toString())) {
+      yearHolidays.add(holiday);
+    }
   }
-
-  for (const [month, day] of mondayAdjustedDates) {
-    const observed: Date = moveToNextMonday(new Date(Date.UTC(year, month - 1, day)));
-    result.add(formatDateKey(observed));
-  }
-
-  const easterSunday: Date = calculateEasterSunday(year);
-  const holyThursday: Date = addDaysUtc(easterSunday, HOLY_THURSDAY_OFFSET);
-  const goodFriday: Date = addDaysUtc(easterSunday, GOOD_FRIDAY_OFFSET);
-  result.add(formatDateKey(holyThursday));
-  result.add(formatDateKey(goodFriday));
-
-  const ascensionMonday: Date = moveToNextMonday(addDaysUtc(easterSunday, ASCENSION_OFFSET));
-  const corpusChristiMonday: Date = moveToNextMonday(addDaysUtc(easterSunday, CORPUS_CHRISTI_OFFSET));
-  const sacredHeartMonday: Date = moveToNextMonday(addDaysUtc(easterSunday, SACRED_HEART_OFFSET));
-
-  result.add(formatDateKey(ascensionMonday));
-  result.add(formatDateKey(corpusChristiMonday));
-  result.add(formatDateKey(sacredHeartMonday));
-
-  return result;
+  return yearHolidays;
 }
 
 export function ensureHolidayYear(year: number): void {
   if (!holidayCache.has(year)) {
-    holidayCache.set(year, { year, days: buildHolidaySet(year) });
+    // This function is now sync, so it can't fetch.
+    // It relies on preloading.
+    // If holidays are not preloaded, it will result in incorrect calculations.
+    // I will add a console warning if the cache is empty.
+    if (!allHolidays) {
+        console.warn(`Holiday cache is not populated for year ${year}. Calculations may be incorrect.`);
+        holidayCache.set(year, { year, days: new Set() });
+    } else {
+        const yearHolidays = buildHolidaySetForYear(year, allHolidays);
+        holidayCache.set(year, { year, days: yearHolidays });
+    }
   }
 }
 
-export function preloadHolidayRange(centerYear: number): void {
+export async function preloadHolidayRange(centerYear: number): Promise<void> {
+  const holidays = await fetchHolidays();
   for (let offset = -HOLIDAY_CACHE_YEARS_BACKWARD; offset <= HOLIDAY_CACHE_YEARS_FORWARD; offset += 1) {
-    ensureHolidayYear(centerYear + offset);
+    const year = centerYear + offset;
+    if (!holidayCache.has(year)) {
+        const yearHolidays = buildHolidaySetForYear(year, holidays);
+        holidayCache.set(year, { year, days: yearHolidays });
+    }
   }
 }
 
